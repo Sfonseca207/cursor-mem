@@ -9,6 +9,9 @@ La documentación está **solo** en `docs/`. Empieza por [`README.md`](./README.
 | Primera vez en el repo / “de qué va” | `README.md` + `start/tesis.md` | referencia entera |
 | Cómo se comprime / observer | `start/compresion.md` + `start/observer.md` | todos los `.mdx` de `observer/` |
 | Tocar worker / SQLite / search | `start/panorama.md` + **un** archivo de `arquitectura/` (CATALOG) | `hooks.mdx` y `worker-service.mdx` a la vez “por si acaso” |
+| Arrancar / QA el worker de este repo | `start/runtime.md` | `npm run worker:start` (eso es claude-mem / marketplace) |
+| Identidad de sesión Cursor | `start/identidad.md` | `session-id.md` de Claude Code como si fuera Cursor |
+| Captura Agent (hooks de este repo) | `start/captura.md` | `cursor-hooks/hooks.json` o `npm run cursor:install` |
 | Tocar `cursor-hooks/` o inyección | `start/tesis.md` (sección Cursor) + `cursor/README.md` | `cursor/review.md` salvo que el bug esté ahí |
 | Sync / cmem.ai | `start/cloud-sync.md`; detalle `arquitectura/cloud-sync.mdx` | asumir que `workers/sync-hub/` existe (se eliminó el deploy) |
 | Principios (índice, context rot, modos) | `filosofia/README.md` y el archivo nombrado | instalar claude-mem como producto |

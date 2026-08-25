@@ -22,6 +22,10 @@ Leyenda de capa: `mapa` · `start` · `ref`.
 | `docs/start/compresion.md` | Observer XML, cola, init/ingest/summarize, código en `src/`. |
 | `docs/start/observer.md` | Cómo se elige proveedor/modelo/modo. |
 | `docs/start/cloud-sync.md` | Sync opcional; no es el MVP Cursor. |
+| `docs/start/mvp.md` | TODO de la v1 (Agent usable). |
+| `docs/start/runtime.md` | Worker aislado vs claude-mem; `cursormem:start` / `cursormem:qa`. |
+| `docs/start/identidad.md` | Contrato: conversation_id, platformSource=cursor, proyecto. |
+| `docs/start/captura.md` | Hooks Agent de este checkout; fail-open; `~/.cursor/hooks.json` es punto 5. |
 
 ## Filosofía (ref)
 
@@ -69,7 +73,7 @@ Leyenda de capa: `mapa` · `start` · `ref`.
 | `docs/cursor/gemini-setup.mdx` | Gemini en Cursor; detalle de modelo en `observer/`. |
 | `docs/cursor/openrouter-setup.mdx` | OpenRouter en Cursor; igual. |
 
-Scripts: `cursor-hooks/*.sh`.
+Scripts: `scripts/cursor-mem-hook.sh` (vivo). `cursor-hooks/*.sh` no existen.
 
 ## Observer (ref)
 

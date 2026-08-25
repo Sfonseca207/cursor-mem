@@ -26,7 +26,8 @@ Auto Run Docs/
 src/ui/viewer.html
 
 .mcp.json
-.cursor/
+.cursor/*
+!.cursor/hooks.json
 
 .idea/
 

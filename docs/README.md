@@ -31,6 +31,10 @@ docs/observer/     ← proveedor, settings, búsqueda
 4. Según el trabajo:
    - Cursor / inyección → [`cursor/README.md`](./cursor/README.md)
    - Elegir modelo observer → [`start/observer.md`](./start/observer.md)
+   - Primera versión (TODO) → [`start/mvp.md`](./start/mvp.md)
+   - Arrancar el motor aislado → [`start/runtime.md`](./start/runtime.md)
+   - Identidad de sesión Cursor → [`start/identidad.md`](./start/identidad.md)
+   - Captura Agent (hooks) → [`start/captura.md`](./start/captura.md)
    - Sync nube → [`start/cloud-sync.md`](./start/cloud-sync.md) (no es el MVP de Cursor)
    - Principios → [`filosofia/README.md`](./filosofia/README.md)
 

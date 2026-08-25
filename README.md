@@ -8,6 +8,8 @@ Cursor no recuerda entre conversaciones. Este repo no es un fork de marketing ni
 
 - Tesis: [`docs/start/tesis.md`](docs/start/tesis.md)
 - Motor: `src/`
-- Puente Cursor: `cursor-hooks/` (a replantear)
+- Worker aislado: [`docs/start/runtime.md`](docs/start/runtime.md) (`npm run cursormem:start` / `cursormem:qa`)
+- Captura Agent: [`docs/start/captura.md`](docs/start/captura.md) (`.cursor/hooks.json` de este repo)
+- Puente legado: `cursor-hooks/` (no es el path vivo)
 
 Licencia original: Apache 2.0 (`LICENSE`).

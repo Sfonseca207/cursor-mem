@@ -16,7 +16,7 @@ Hook (Read/Edit/Bash/…) → Worker (cola) → Observer LLM → XML parseado �
 4. **Reinyección** — 1ª sesión siembra; desde la 2ª hay continuidad.
 5. **Búsqueda** — `search` → `timeline` → `get_observations` ([`../observer/search-tools.mdx`](../observer/search-tools.mdx)).
 
-Datos en `~/.claude-mem`. Lo único que sale de la máquina por defecto: llamadas al proveedor que comprime. Sync a cmem.ai: [cloud-sync.md](./cloud-sync.md).
+Datos del motor original: `~/.claude-mem`. En **este** repo el worker de lab va a `~/.cursor-mem` puerto `37850` — [runtime.md](./runtime.md). Lo único que sale de la máquina por defecto: llamadas al proveedor que comprime. Sync a cmem.ai: [cloud-sync.md](./cloud-sync.md).
 
 ## Árbol que importa
 
