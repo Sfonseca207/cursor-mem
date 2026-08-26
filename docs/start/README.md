@@ -13,5 +13,7 @@ Capa corta en español: **intención de cursor-mem** y síntesis del motor. Lée
 | 7 | [runtime.md](./runtime.md) | Worker aislado (`~/.cursor-mem` :37850) y `cursormem:qa` |
 | 8 | [identidad.md](./identidad.md) | Sesión Cursor = conversation_id + platformSource + proyecto |
 | 9 | [captura.md](./captura.md) | Hooks Agent → worker aislado (punto 3) |
+| 10 | [inyeccion.md](./inyeccion.md) | Índice `sessionStart` + MCP (punto 4) |
+| 11 | [uso.md](./uso.md) | Arranque v1: `cursormem:install` a `~/.cursor/` + prueba A→B |
 
 Mapa global: [`../README.md`](../README.md). Ruteo: [`../CATALOG.md`](../CATALOG.md).

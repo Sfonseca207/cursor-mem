@@ -35,6 +35,8 @@ docs/observer/     ← proveedor, settings, búsqueda
    - Arrancar el motor aislado → [`start/runtime.md`](./start/runtime.md)
    - Identidad de sesión Cursor → [`start/identidad.md`](./start/identidad.md)
    - Captura Agent (hooks) → [`start/captura.md`](./start/captura.md)
+   - Inyección (índice + MCP) → [`start/inyeccion.md`](./start/inyeccion.md)
+   - Uso v1 (install + A→B) → [`start/uso.md`](./start/uso.md)
    - Sync nube → [`start/cloud-sync.md`](./start/cloud-sync.md) (no es el MVP de Cursor)
    - Principios → [`filosofia/README.md`](./filosofia/README.md)
 

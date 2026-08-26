@@ -53,38 +53,44 @@ Contrato: [`identidad.md`](./identidad.md).
 
 ### 3. Captura (Agent) — **hecho y probado** (2026-08-25)
 
-Contrato: [`captura.md`](./captura.md). Destino v1: `.cursor/hooks.json` de **este** checkout. Para el resto de repos: `~/.cursor/hooks.json` (punto 5).
+Contrato: [`captura.md`](./captura.md). Destino v1: `~/.cursor/hooks.json` (`cursormem:install`, punto 5). Este checkout no lleva hooks de proyecto (doble disparo).
 
-- [x] `hooks.json` de proyecto llama `bash scripts/cursor-mem-hook.sh <evento>` (runtime aislado, no marketplace).
-- [x] `beforeSubmitPrompt` → `session-init` (timeout 5 s).
+- [x] `~/.cursor/hooks.json` llama `./hooks/cursor-mem-<evento>.sh` (relativo a `~/.cursor/`; runtime aislado, no marketplace).
+- [x] `sessionStart` → `ensure-start` (arranca worker si hace falta) y luego `context` (índice).
+- [x] `beforeSubmitPrompt` → `session-init` (timeout 15 s; también levanta el worker).
 - [x] `afterShellExecution` + `afterMCPExecution` → `observation`.
 - [x] `afterFileEdit` → `file-edit`.
 - [x] `stop` → `summarize` **solo con observaciones** (Cursor no da transcript).
 - [x] QA HTTP: `cursormem:qa` paso captura — `continue: true`; log `ENQUEUED` Bash/search/write_file/summarize.
-- [ ] Confirmar en Settings → Hooks que disparan y no bloquean (manual, este checkout).
-- [ ] (Opcional v1) `sessionStart` / `afterAgentResponse` — no bloquean; inyección es punto 4.
+- [ ] Confirmar en Settings → Hooks que disparan y no bloquean (manual; checklist en [`uso.md`](./uso.md)).
+- [x] QA lazy-start: stop + hook `ensure-start` → health `ok` en `:37850`.
 
-### 4. Inyección (índice, no dump)
+### 4. Inyección (índice, no dump) — **hecho y probado** (2026-08-26)
 
-Reemplazar `.cursor/rules/claude-mem-context.mdc` con `alwaysApply: true`.
+Contrato: [`inyeccion.md`](./inyeccion.md). Destino v1: `~/.cursor/mcp.json` + `sessionStart` (`cursormem:install`, punto 5).
 
-- [ ] **No** escribir un rules file always-on con el pasado entero.
-- [ ] Cablear MCP de memoria en Cursor (`plugin/scripts/mcp-server.cjs` o el que resuelva el instalador contra este repo).
-- [ ] Índice barato al arrancar **solo si** el hook puede devolver contexto (p. ej. `sessionStart` / `additional_context`). Si Cursor **no** deja inyectar texto al prompt desde el hook: un rule **corto** (cómo usar `search` / `timeline` / `get_observations`), no el historial.
-- [ ] El agente de la sesión B usa MCP; no relee 30k tokens de recuerdos.
+- [x] **No** escribir un rules file always-on con el pasado entero (nada de `claude-mem-context.mdc`).
+- [x] MCP de memoria en Cursor: `~/.cursor/mcp.json` → `plugin/scripts/mcp-server.cjs` de este checkout con env aislado (`~/.cursor-mem`, `37850`).
+- [x] Índice barato al arrancar: `sessionStart` → `hook cursor context` → `additional_context`. Rule **corta** (cómo usar `search` / `timeline` / `get_observations`), no el historial.
+- [x] El agente de la sesión B usa MCP; no relee 30k tokens de recuerdos.
+- [x] QA HTTP: `cursormem:qa` paso inject — GET `/api/context/inject` + hook `context` con `additional_context`.
 
-### 5. Instalar en un paso
+### 5. Instalar en un paso — **hecho y probado** (2026-08-26)
 
-- [ ] Un comando de este repo: instalar hooks + MCP contra el checkout (adaptar `CursorHooksInstaller` / `npm run cursor:install` para que no exija marketplace).
-- [ ] README de uso v1: bun, settings, worker, restart Cursor, dónde mirar (Hooks tab + viewer si sigue vivo).
-- [ ] Destino: `~/.cursor/hooks.json` (user) o `.cursor/hooks.json` (proyecto). Elegir uno para v1 y documentarlo.
+Contrato: [`uso.md`](./uso.md). Destino v1: **usuario** (`~/.cursor/`). No se tocó `CursorHooksInstaller` ni `npm run cursor:install` (marketplace + dump).
+
+- [x] Un comando de este repo: `npm run cursormem:install` escribe hooks + MCP + rule corta contra este checkout (`scripts/cursor-mem-install.ts`).
+- [x] README de uso v1: bun, settings, worker, restart Cursor, Hooks tab, viewer `:37850`, SQLite.
+- [x] Destino elegido: `~/.cursor/hooks.json` + `~/.cursor/mcp.json` (paths absolutos). Este checkout no lleva copies de proyecto.
 
 ### 6. Verificar
 
-- [ ] Chat A: una decisión o un fix; aparecen observaciones en SQLite / viewer.
-- [ ] Chat B (nuevo): índice o `search` encuentra esa observación.
-- [ ] Worker down: el agente igual responde.
-- [ ] Nada de `claude-mem-context.mdc` alwaysApply en el flujo v1.
+Checklist: [`uso.md`](./uso.md). La prueba de oro del punto 0 es el mismo A→B.
+
+- [ ] Chat A: una decisión o un fix; aparecen observaciones en SQLite / viewer. (manual, tras restart Cursor)
+- [ ] Chat B (nuevo): índice o `search` (server `cursor-mem`, `platformSource=cursor`) encuentra esa observación.
+- [ ] Worker down: el agente igual responde (`cursormem:qa -- --fail-open` cubre health; confirmar el Agent a mano).
+- [x] Nada de `claude-mem-context.mdc` alwaysApply en el flujo v1 (`~/.cursor/rules/` y `.cursor/rules/` de este repo).
 
 ---
 

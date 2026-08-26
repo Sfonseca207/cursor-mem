@@ -25,7 +25,9 @@ Leyenda de capa: `mapa` · `start` · `ref`.
 | `docs/start/mvp.md` | TODO de la v1 (Agent usable). |
 | `docs/start/runtime.md` | Worker aislado vs claude-mem; `cursormem:start` / `cursormem:qa`. |
 | `docs/start/identidad.md` | Contrato: conversation_id, platformSource=cursor, proyecto. |
-| `docs/start/captura.md` | Hooks Agent de este checkout; fail-open; `~/.cursor/hooks.json` es punto 5. |
+| `docs/start/captura.md` | Hooks Agent usuario (`~/.cursor/hooks.json`); fail-open. |
+| `docs/start/inyeccion.md` | Índice `sessionStart` + MCP usuario; rule corta; no dump alwaysApply. |
+| `docs/start/uso.md` | Arranque v1: `cursormem:install`; Agent/`agent` auto-start; prueba A→B. |
 
 ## Filosofía (ref)
 
@@ -73,7 +75,7 @@ Leyenda de capa: `mapa` · `start` · `ref`.
 | `docs/cursor/gemini-setup.mdx` | Gemini en Cursor; detalle de modelo en `observer/`. |
 | `docs/cursor/openrouter-setup.mdx` | OpenRouter en Cursor; igual. |
 
-Scripts: `scripts/cursor-mem-hook.sh` (vivo). `cursor-hooks/*.sh` no existen.
+Scripts: `scripts/cursor-mem-hook.sh` (vivo), `scripts/cursor-mem-install.ts` (`cursormem:install`). `cursor-hooks/*.sh` no existen.
 
 ## Observer (ref)
 

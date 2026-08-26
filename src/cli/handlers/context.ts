@@ -19,6 +19,7 @@ import { readStaleMarker } from '../../shared/oauth-token.js';
 import { normalizePlatformSource } from '../../shared/platform-source.js';
 import { callMcpToolOnce } from '../../shared/mcp-client.js';
 import { proTrialLine } from '../../shared/pro-promo.js';
+import { cursorMemSessionBanner } from '../cursor-mem-banner.js';
 
 async function requestSessionStartContext(args: {
   projects: string[];
@@ -88,7 +89,8 @@ export const contextHandler: EventHandler = {
       ? `&platformSource=${encodeURIComponent(normalizedPlatformSource!)}`
       : '';
     const apiPath = `/api/context/inject?projects=${encodeURIComponent(projectsParam)}${platformSourceParam}`;
-    const colorApiPath = input.platform === 'claude-code' ? `${apiPath}&colors=true` : apiPath;
+    const wantsColorTimeline = input.platform === 'claude-code' || input.platform === 'cursor';
+    const colorApiPath = wantsColorTimeline ? `${apiPath}&colors=true` : apiPath;
 
     const emptyResult: HookResult = {
       hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: '' },
@@ -152,16 +154,24 @@ export const contextHandler: EventHandler = {
     }
 
     const platform = input.platform;
+    const banner = platform === 'cursor' ? cursorMemSessionBanner(port) : '';
 
     // Antigravity CLI (like the former Gemini CLI) is hooks-based, not an
     // MCP-context-fetch platform like Codex — colorApiPath never populates
-    // coloredTimeline for it (colors are claude-code-only above), so fall
+    // coloredTimeline for it (colors are claude-code/cursor above), so fall
     // back to the plain additionalContext for terminal display.
-    const displayContent = coloredTimeline || (platform === 'antigravity-cli' ? additionalContext : '');
+    const displayContent = coloredTimeline
+      || (platform === 'antigravity-cli' || platform === 'cursor' ? additionalContext : '');
 
-    const systemMessage = showTerminalOutput && displayContent
-      ? `${displayContent}\n\nView Observations Live @ http://localhost:${port}\n${proTrialLine('session-start')}`
-      : undefined;
+    let systemMessage: string | undefined;
+    if (platform === 'cursor') {
+      // Always surface started + viewer URL in the CLI (`user_message`), even
+      // on an empty first session. Timeline/index stay in additional_context.
+      systemMessage = displayContent ? `${displayContent}\n\n${banner}` : banner;
+      additionalContext = additionalContext ? `${banner}\n\n${additionalContext}` : banner;
+    } else if (showTerminalOutput && displayContent) {
+      systemMessage = `${displayContent}\n\nView Observations Live @ http://localhost:${port}\n${proTrialLine('session-start')}`;
+    }
 
     return {
       hookSpecificOutput: {

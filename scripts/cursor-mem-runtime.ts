@@ -8,6 +8,7 @@ import { homedir } from 'os';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { spawnSync, type SpawnSyncReturns } from 'child_process';
+import { formatPreflightBanner } from '../src/cli/cursor-mem-banner.ts';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 
@@ -17,9 +18,16 @@ export const CURSOR_MEM_DATA_DIR = join(homedir(), '.cursor-mem');
 export const WORKER_SCRIPT = join(REPO_ROOT, 'plugin', 'scripts', 'worker-service.cjs');
 export const HOOK_CLI = join(REPO_ROOT, 'src', 'services', 'worker-service.ts');
 export const SETTINGS_PATH = join(CURSOR_MEM_DATA_DIR, 'settings.json');
+export const RUNTIME_SCRIPT = join(SCRIPT_DIR, 'cursor-mem-runtime.ts');
+export const WORKER_START_TIMEOUT_MS = 40_000;
+export const WORKER_ENSURE_EVENTS = new Set(['ensure-start', 'context', 'session-init']);
 
 export function workerBaseUrl(): string {
   return `http://127.0.0.1:${CURSOR_MEM_PORT}`;
+}
+
+export function shouldEnsureWorkerForHookEvent(event: string): boolean {
+  return WORKER_ENSURE_EVENTS.has(event);
 }
 
 export function isolatedEnv(): NodeJS.ProcessEnv {
@@ -52,7 +60,68 @@ export function runWorkerCommand(command: WorkerCliCommand): SpawnSyncReturns<st
     env: isolatedEnv(),
     encoding: 'utf-8',
     cwd: REPO_ROOT,
+    timeout: command === 'start' ? WORKER_START_TIMEOUT_MS : undefined,
   });
+}
+
+export async function probeIsolatedWorkerHealth(timeoutMs = 800): Promise<boolean> {
+  try {
+    const response = await fetch(`${workerBaseUrl()}/api/health`, {
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: { Accept: 'application/json' },
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+export function parseWorkerStartSuccess(result: SpawnSyncReturns<string>): boolean {
+  if (result.error) return false;
+  const stdout = (result.stdout ?? '').trim();
+  if (stdout) {
+    try {
+      const last = stdout.split('\n').filter(Boolean).pop() ?? '{}';
+      const parsed = JSON.parse(last) as { status?: string };
+      if (parsed.status === 'error') return false;
+    } catch {
+      // start may print non-JSON noise on stdout
+    }
+  }
+  return (result.status ?? 1) === 0;
+}
+
+/** Idempotent: health ok → no-op; else `worker start` and re-probe. Fail-open (returns false). */
+export async function ensureIsolatedWorkerRunning(): Promise<boolean> {
+  if (await probeIsolatedWorkerHealth()) return true;
+  const result = runWorkerCommand('start');
+  if (!parseWorkerStartSuccess(result)) return false;
+  return probeIsolatedWorkerHealth(2_000);
+}
+
+/** Same path Cursor uses: `bun scripts/cursor-mem-runtime.ts hook <event>`. */
+export function runRuntimeHook(event: string, stdinJson: string): SpawnSyncReturns<string> {
+  return spawnSync('bun', [RUNTIME_SCRIPT, 'hook', event], {
+    env: isolatedEnv(),
+    encoding: 'utf-8',
+    cwd: REPO_ROOT,
+    input: stdinJson,
+    timeout: WORKER_START_TIMEOUT_MS + 5_000,
+  });
+}
+
+export function writePreflightBanner(text: string): void {
+  try {
+    writeFileSync('/dev/tty', `${text}\n`);
+  } catch {
+    process.stderr.write(`${text}\n`);
+  }
+}
+
+export async function runPreflight(): Promise<number> {
+  const ok = await ensureIsolatedWorkerRunning();
+  writePreflightBanner(formatPreflightBanner(ok, CURSOR_MEM_PORT));
+  return 0;
 }
 
 export function runCursorHook(event: string, stdinJson: string): SpawnSyncReturns<string> {
@@ -80,7 +149,7 @@ function printSpawnResult(result: SpawnSyncReturns<string>): number {
 }
 
 function printUsage(): void {
-  console.error('Usage: bun scripts/cursor-mem-runtime.ts start|stop|status|hook <event>');
+  console.error('Usage: bun scripts/cursor-mem-runtime.ts start|stop|status|preflight|hook <event>');
 }
 
 function readStdinSync(): string {
@@ -92,10 +161,16 @@ function readStdinSync(): string {
   }
 }
 
-function runHookCli(event: string): number {
+async function runHookCli(event: string): Promise<number> {
   const stdinJson = readStdinSync();
-  const result = runCursorHook(event, stdinJson);
-  return printSpawnResult(result);
+  if (shouldEnsureWorkerForHookEvent(event)) {
+    await ensureIsolatedWorkerRunning();
+  }
+  if (event === 'ensure-start') {
+    process.stdout.write('{"continue":true}\n');
+    return 0;
+  }
+  return printSpawnResult(runCursorHook(event, stdinJson));
 }
 
 async function main(): Promise<void> {
@@ -106,7 +181,11 @@ async function main(): Promise<void> {
       printUsage();
       process.exit(1);
     }
-    process.exit(runHookCli(event));
+    process.exit(await runHookCli(event));
+  }
+
+  if (command === 'preflight') {
+    process.exit(await runPreflight());
   }
 
   if (command !== 'start' && command !== 'stop' && command !== 'status') {

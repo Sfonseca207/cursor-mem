@@ -7,15 +7,17 @@
  *   bun scripts/cursor-mem-qa.ts --fail-open
  */
 import { Database } from 'bun:sqlite';
-import { readFileSync } from 'fs';
+import { readdirSync, readFileSync } from 'fs';
 import { homedir } from 'os';
 import { basename, join } from 'path';
+import { checkUserCursorMem, defaultLayout } from './cursor-mem-install.ts';
 import {
   CURSOR_MEM_DATA_DIR,
   CURSOR_MEM_PORT,
   REPO_ROOT,
   WORKER_SCRIPT,
   runCursorHook,
+  runRuntimeHook,
   runWorkerCommand,
   workerBaseUrl,
 } from './cursor-mem-runtime.ts';
@@ -273,16 +275,24 @@ function findSession(db: Database, contentSessionId: string, platformSource: str
 }
 
 function parseHookContinue(stdout: string): boolean {
+  const parsed = parseHookStdoutJson(stdout);
+  return parsed?.continue === true;
+}
+
+function parseHookStdoutJson(stdout: string): {
+  continue?: boolean;
+  additional_context?: string;
+  user_message?: string;
+} | null {
   const lines = stdout.trim().split('\n').filter(Boolean);
   for (let i = lines.length - 1; i >= 0; i--) {
     try {
-      const parsed = JSON.parse(lines[i]) as { continue?: boolean };
-      if (typeof parsed.continue === 'boolean') return parsed.continue;
+      return JSON.parse(lines[i]) as { continue?: boolean; additional_context?: string };
     } catch {
       // keep looking
     }
   }
-  return false;
+  return null;
 }
 
 function runCaptureHook(
@@ -309,23 +319,25 @@ function runIdentityHook(payload: Record<string, unknown>): { continue: boolean;
   return runCaptureHook('session-init', payload);
 }
 
-function workerLogPath(): string {
-  const now = new Date();
-  const yyyy = now.getFullYear();
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const dd = String(now.getDate()).padStart(2, '0');
-  return join(CURSOR_MEM_DATA_DIR, 'logs', `claude-mem-${yyyy}-${mm}-${dd}.log`);
+function workerLogsDir(): string {
+  return join(CURSOR_MEM_DATA_DIR, 'logs');
 }
 
 function logEnqueued(sessionDbId: number, snippet: string): boolean {
-  const path = workerLogPath();
-  let text = '';
+  let files: string[] = [];
   try {
-    text = readFileSync(path, 'utf-8');
+    files = readdirSync(workerLogsDir()).filter((name) => name.startsWith('claude-mem-') && name.endsWith('.log'));
   } catch {
     return false;
   }
-  return text.split('\n').some((line) => line.includes(`sessionDbId=${sessionDbId}`) && line.includes(snippet));
+  const sessionNeedle = `sessionDbId=${sessionDbId}`;
+  for (const name of files) {
+    const text = readFileSync(join(workerLogsDir(), name), 'utf-8');
+    if (text.split('\n').some((line) => line.includes(sessionNeedle) && line.includes(snippet))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function assertHookOk(event: string, hook: { continue: boolean; status: number; stdout: string }): void {
@@ -421,6 +433,57 @@ async function captureGoldPath(): Promise<void> {
   }
 }
 
+async function injectGoldPath(): Promise<void> {
+  const injectPath = `/api/context/inject?projects=${encodeURIComponent(PROJECT_NAME)}&platformSource=cursor`;
+  const inject = await fetchJson(injectPath, { headers: { Accept: 'text/plain' } });
+  const text = typeof inject.body === 'string' ? inject.body : JSON.stringify(inject.body);
+  console.log(`  inject HTTP ${inject.status} bytes=${text.length} preview=${text.slice(0, 120).replace(/\n/g, ' ')}`);
+  if (!inject.ok) {
+    throw new Error(`context inject failed: HTTP ${inject.status}`);
+  }
+  if (!text.includes(`[${PROJECT_NAME}]`) && !text.toLowerCase().includes('no previous')) {
+    throw new Error(`inject body missing project header [${PROJECT_NAME}]: ${text.slice(0, 200)}`);
+  }
+
+  const hook = runCaptureHook('context', {
+    conversation_id: crypto.randomUUID(),
+    workspace_roots: [REPO_ROOT],
+    hook_event_name: 'sessionStart',
+  });
+  assertHookOk('context', hook);
+  const parsed = parseHookStdoutJson(hook.stdout);
+  const extra = parsed?.additional_context ?? '';
+  if (!extra.trim()) {
+    throw new Error('hook cursor context did not emit additional_context');
+  }
+  if (!extra.includes('cursor-mem started') || !extra.includes('http://localhost:37850')) {
+    throw new Error(`additional_context missing started banner: ${extra.slice(0, 200)}`);
+  }
+  if (!extra.includes(`[${PROJECT_NAME}]`) && !extra.toLowerCase().includes('no previous')) {
+    throw new Error(`additional_context missing project header: ${extra.slice(0, 200)}`);
+  }
+  const userMessage = parsed?.user_message ?? '';
+  if (!userMessage.includes('cursor-mem started') || !userMessage.includes('http://localhost:37850')) {
+    throw new Error(`user_message missing started banner: ${userMessage.slice(0, 200)}`);
+  }
+  console.log(`  hook context additional_context bytes=${extra.length} user_message bytes=${userMessage.length}`);
+}
+
+function installGoldPath(): void {
+  const check = checkUserCursorMem(defaultLayout());
+  for (const warning of check.warnings) {
+    console.log(`  warn: ${warning}`);
+  }
+  if (!check.ok) {
+    throw new Error(
+      `user install check failed: ${check.errors.join('; ')} (npm run cursormem:install)`,
+    );
+  }
+  console.log(`  hooks ${check.hooksPath}`);
+  console.log(`  mcp ${check.mcpPath}`);
+  console.log(`  rule ${check.rulePath}`);
+}
+
 async function identityGoldPath(): Promise<void> {
   const conversationId = crypto.randomUUID();
   const payload = {
@@ -507,23 +570,55 @@ async function identityGoldPath(): Promise<void> {
   }
 }
 
+async function waitForHealthDown(timeoutMs = 10_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const health = await fetchHealth();
+    if (!health.ok && health.status === 0) return;
+    await sleep(POLL_MS);
+  }
+  throw new Error('health still answers after stop');
+}
+
+async function lazyStartGoldPath(): Promise<void> {
+  console.log('\n[qa] lazy-start (sessionStart ensure-start)');
+  const stop = runWorkerCommand('stop');
+  if (stop.stdout) process.stdout.write(stop.stdout);
+  if (stop.stderr) process.stderr.write(stop.stderr);
+  await waitForHealthDown();
+
+  const hook = runRuntimeHook('ensure-start', '{}\n');
+  const stdout = (hook.stdout ?? '').trim();
+  console.log(`  hook ensure-start exit=${hook.status} stdout=${stdout.slice(0, 120)}`);
+  if (hook.error) {
+    throw new Error(`ensure-start spawn error: ${hook.error.message}`);
+  }
+  if (hook.status !== 0) {
+    throw new Error(`ensure-start exited ${hook.status}`);
+  }
+  let parsed: { continue?: boolean } = {};
+  try {
+    parsed = JSON.parse(stdout.split('\n').filter(Boolean).pop() ?? '{}') as { continue?: boolean };
+  } catch {
+    throw new Error(`ensure-start stdout is not JSON: ${stdout}`);
+  }
+  if (parsed.continue !== true) {
+    throw new Error('ensure-start must return continue:true (fail-open)');
+  }
+
+  const ready = await waitForReady();
+  assertWorkerPath(ready.health.workerPath);
+  console.log(`  worker auto-started pid=${ready.health.pid} path=${ready.health.workerPath}`);
+}
+
 async function runFailOpen(): Promise<void> {
   console.log('\n[qa] --fail-open: stopping isolated worker');
   const stop = runWorkerCommand('stop');
   if (stop.stdout) process.stdout.write(stop.stdout);
   if (stop.stderr) process.stderr.write(stop.stderr);
-
-  const deadline = Date.now() + 10_000;
-  let down = false;
-  while (Date.now() < deadline) {
-    const health = await fetchHealth();
-    if (!health.ok && health.status === 0) {
-      down = true;
-      break;
-    }
-    await sleep(POLL_MS);
-  }
-  if (!down) {
+  try {
+    await waitForHealthDown();
+  } catch {
     throw new Error('health still answers after stop — fail-open check failed');
   }
   console.log('  health no responde en :37850');
@@ -596,6 +691,14 @@ async function runOneShot(failOpen: boolean): Promise<void> {
 
   console.log('\n[qa] capture (observation / file-edit / summarize)');
   await captureGoldPath();
+
+  console.log('\n[qa] inject (GET /api/context/inject + hook context)');
+  await injectGoldPath();
+
+  console.log('\n[qa] user install (~/.cursor hooks + MCP isolated)');
+  installGoldPath();
+
+  await lazyStartGoldPath();
 
   await reportClaudeMemUntouched();
 

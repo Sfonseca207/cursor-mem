@@ -16,7 +16,7 @@ Sin ningún id: el handler omite (`continue: true`). Vacío `conversation_id` ca
 
 `memorySessionId` es del **observer**, no de Cursor. Detalle Claude Code: [`../arquitectura/session-id.md`](../arquitectura/session-id.md). Init con `platformSource=cursor` no arranca el SDK observer.
 
-Captura (hooks de este repo): [`captura.md`](./captura.md). Prueba: `npm run cursormem:qa` (pasos identidad + captura). Runtime: [`runtime.md`](./runtime.md).
+Captura (hooks usuario): [`captura.md`](./captura.md). Uso: [`uso.md`](./uso.md). Prueba: `npm run cursormem:qa` (pasos identidad + captura). Runtime: [`runtime.md`](./runtime.md).
 
 ## Estado
 

@@ -27,7 +27,8 @@ src/ui/viewer.html
 
 .mcp.json
 .cursor/*
-!.cursor/hooks.json
+!.cursor/rules/
+!.cursor/rules/cursor-mem.mdc
 
 .idea/
 
