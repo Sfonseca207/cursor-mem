@@ -73,6 +73,8 @@ export const summarizeHandler: EventHandler = {
     }
 
     const { sessionId, transcriptPath } = input;
+    const platformSource = normalizePlatformSource(input.platform);
+    const observationsOnly = platformSource === 'cursor';
 
     if (!sessionId) {
       logger.warn('HOOK', 'summarize: No sessionId provided, skipping');
@@ -83,34 +85,36 @@ export const summarizeHandler: EventHandler = {
 
     if (input.lastAssistantMessage !== undefined) {
       lastAssistantMessage = stripMemoryTags(input.lastAssistantMessage);
-    } else {
-      if (!transcriptPath) {
-        logger.debug('HOOK', `No transcriptPath in Stop hook input for session ${sessionId} - skipping summary`);
-        return { continue: true, suppressOutput: true, exitCode: HOOK_EXIT_CODES.SUCCESS };
-      }
-
+    } else if (transcriptPath) {
       try {
         lastAssistantMessage = extractLastMessage(transcriptPath, 'assistant', true);
         lastAssistantMessage = stripMemoryTags(lastAssistantMessage);
       } catch (err) {
         logger.warn('HOOK', `Stop hook: failed to extract last assistant message for session ${sessionId}: ${err instanceof Error ? err.message : err}`);
-        return { continue: true, suppressOutput: true, exitCode: HOOK_EXIT_CODES.SUCCESS };
+        if (!observationsOnly) {
+          return { continue: true, suppressOutput: true, exitCode: HOOK_EXIT_CODES.SUCCESS };
+        }
       }
+    } else if (!observationsOnly) {
+      logger.debug('HOOK', `No transcriptPath in Stop hook input for session ${sessionId} - skipping summary`);
+      return { continue: true, suppressOutput: true, exitCode: HOOK_EXIT_CODES.SUCCESS };
     }
 
     if (!lastAssistantMessage || !lastAssistantMessage.trim()) {
-      logger.debug('HOOK', 'No assistant message available - skipping summary', {
-        sessionId,
-        transcriptPath
-      });
-      return { continue: true, suppressOutput: true, exitCode: HOOK_EXIT_CODES.SUCCESS };
+      if (!observationsOnly) {
+        logger.debug('HOOK', 'No assistant message available - skipping summary', {
+          sessionId,
+          transcriptPath
+        });
+        return { continue: true, suppressOutput: true, exitCode: HOOK_EXIT_CODES.SUCCESS };
+      }
+      lastAssistantMessage = '';
+      logger.debug('HOOK', 'Cursor stop: summarizing from observations only', { sessionId });
     }
 
     logger.dataIn('HOOK', 'Stop: Requesting summary', {
       hasLastAssistantMessage: !!lastAssistantMessage
     });
-
-    const platformSource = normalizePlatformSource(input.platform);
 
     const runtime = resolveRuntimeContext();
     // Phase 1a (cmem-sdk rename): `runtime.runtime` is the canonical `'server'`

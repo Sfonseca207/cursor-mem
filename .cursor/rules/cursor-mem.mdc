@@ -1,0 +1,22 @@
+---
+alwaysApply: true
+description: "How to use cursor-mem MCP search without dumping history"
+---
+
+# cursor-mem memory
+
+You have MCP tools against this checkout's isolated worker (`cursor-mem`). Do not dump past sessions into the prompt. Unfold on demand.
+
+## Tools
+
+1. **search** — compact index (`query`, optional `project`, `platformSource=cursor`, `limit`)
+2. **timeline** — context around an observation (`anchor` = ID)
+3. **get_observations** — full details for filtered IDs only
+
+## 3-layer workflow
+
+1. Search first (~50–100 tokens/result)
+2. Timeline around interesting IDs
+3. Fetch details only for those IDs
+
+Never call `get_observations` without filtering first. Prefer `platformSource=cursor` in this repo. Use the `cursor-mem` MCP server, not the marketplace `plugin-claude-mem-mcp-search`.

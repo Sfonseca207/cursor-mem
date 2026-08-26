@@ -27,10 +27,22 @@ export function deriveCursorTranscriptPath(cwd: string | undefined, sessionId: s
   return existsSync(candidate) ? candidate : undefined;
 }
 
+function parseToolInput(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
 export const cursorAdapter: PlatformAdapter = {
   normalizeInput(raw) {
     const r = (raw ?? {}) as any;
-    const isShellCommand = !!r.command && !r.tool_name;
+    const namedTool = r.tool_name || r.toolName || r.tool;
+    const isShellCommand = !!r.command && !namedTool;
     const cwd = r.workspace_roots?.[0] ?? r.cwd ?? process.cwd();
     if (!isValidCwd(cwd)) {
       throw new AdapterRejectedInput('invalid_cwd');
@@ -40,18 +52,42 @@ export const cursorAdapter: PlatformAdapter = {
       sessionId,
       cwd,
       prompt: r.prompt ?? r.query ?? r.input ?? r.message,
-      toolName: isShellCommand ? 'Bash' : r.tool_name,
-      toolInput: isShellCommand ? { command: r.command } : r.tool_input,
-      toolResponse: isShellCommand ? { output: r.output } : r.result_json,  // result_json not tool_response
+      toolName: isShellCommand ? 'Bash' : namedTool,
+      toolInput: isShellCommand
+        ? { command: r.command }
+        : parseToolInput(r.tool_input ?? r.toolInput ?? r.arguments),
+      toolResponse: isShellCommand
+        ? { output: r.output }
+        : (r.result_json ?? r.resultJson ?? r.tool_output ?? r.result ?? r.output),
       // Cursor's stop hook does not pass a transcript path on stdin, but it
       // does write a JSONL transcript to disk under ~/.cursor/projects/...,
-      // so we derive the path from cwd + conversation id.
+      // so we derive the path from cwd + session id.
       transcriptPath: deriveCursorTranscriptPath(cwd, sessionId),
       filePath: r.file_path,
       edits: r.edits,
     };
   },
   formatOutput(result) {
-    return { continue: result.continue ?? true };
+    const output: Record<string, unknown> = {
+      continue: result.continue ?? true,
+    };
+    const hook = result.hookSpecificOutput;
+    if (
+      hook?.hookEventName === 'SessionStart' &&
+      typeof hook.additionalContext === 'string' &&
+      hook.additionalContext.length > 0
+    ) {
+      output.additional_context = hook.additionalContext;
+    }
+    // Cursor sessionStart accepts user_message (shown in the CLI/IDE). Map the
+    // Claude Code systemMessage banner so `agent` prints "started" + viewer URL.
+    if (
+      hook?.hookEventName === 'SessionStart' &&
+      typeof result.systemMessage === 'string' &&
+      result.systemMessage.length > 0
+    ) {
+      output.user_message = result.systemMessage;
+    }
+    return output;
   }
 };

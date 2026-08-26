@@ -161,3 +161,52 @@ describe('contextHandler Codex SessionStart MCP path', () => {
     }]);
   });
 });
+
+describe('contextHandler Cursor sessionStart banner', () => {
+  it('always emits started + viewer URL and requests a color timeline', async () => {
+    contextShowTerminalOutput = 'true';
+    const { contextHandler } = await import('../../../src/cli/handlers/context.js');
+
+    const result = await contextHandler.execute({
+      sessionId: 'session-cursor-banner',
+      cwd: '/tmp/repo',
+      platform: 'cursor',
+    });
+
+    expect(result.hookSpecificOutput?.additionalContext).toContain('cursor-mem started');
+    expect(result.hookSpecificOutput?.additionalContext).toContain('http://localhost:37777');
+    expect(result.hookSpecificOutput?.additionalContext).toContain('context from worker');
+    expect(result.systemMessage).toContain('cursor-mem started');
+    expect(result.systemMessage).toContain('View memories @ http://localhost:37777');
+    expect(result.systemMessage).toContain('context from worker');
+    expect(workerCalls).toEqual([
+      {
+        path: '/api/context/inject?projects=parent-project%2Crepo-project&platformSource=cursor',
+        method: 'GET',
+      },
+      {
+        path: '/api/context/inject?projects=parent-project%2Crepo-project&platformSource=cursor&colors=true',
+        method: 'GET',
+      },
+    ]);
+  });
+
+  it('still prints the viewer banner when terminal timeline is disabled', async () => {
+    contextShowTerminalOutput = 'false';
+    const { contextHandler } = await import('../../../src/cli/handlers/context.js');
+
+    const result = await contextHandler.execute({
+      sessionId: 'session-cursor-banner-quiet',
+      cwd: '/tmp/repo',
+      platform: 'cursor',
+    });
+
+    expect(result.systemMessage).toBe(
+      'context from worker\n\ncursor-mem started\nView memories @ http://localhost:37777',
+    );
+    expect(workerCalls).toEqual([{
+      path: '/api/context/inject?projects=parent-project%2Crepo-project&platformSource=cursor',
+      method: 'GET',
+    }]);
+  });
+});

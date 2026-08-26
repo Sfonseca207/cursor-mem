@@ -52,7 +52,8 @@ export const observationHandler: EventHandler = {
     logger.dataIn('HOOK', `PostToolUse: ${toolStr}`, {});
 
     if (!cwd) {
-      throw new Error(`Missing cwd in PostToolUse hook input for session ${sessionId}, tool ${toolName}`);
+      logger.warn('HOOK', `Missing cwd in PostToolUse hook input for session ${sessionId}, tool ${toolName}`);
+      return { continue: true, suppressOutput: true, exitCode: HOOK_EXIT_CODES.SUCCESS };
     }
 
     if (!shouldTrackProject(cwd)) {

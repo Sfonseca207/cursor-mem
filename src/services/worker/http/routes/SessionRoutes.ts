@@ -511,8 +511,7 @@ export class SessionRoutes extends BaseRouteHandler {
     store.saveUserPrompt(contentSessionId, promptNumber, cleanedPrompt, sessionDbId);
 
     // Fire-and-forget cloud sync nudge, beside the write itself so every
-    // saved prompt nudges — including cursor sessions, which skip the
-    // non-cursor branch below entirely.
+    // saved prompt nudges — including cursor sessions, which skip SDK init.
     this.dbManager.getCloudSync()?.notify();
 
     const contextInjected = this.sessionManager.getSession(sessionDbId) !== undefined;
@@ -523,50 +522,49 @@ export class SessionRoutes extends BaseRouteHandler {
       contextInjected
     });
 
+    const latestPrompt = store.getLatestUserPrompt(contentSessionId, sessionDbId);
+    if (latestPrompt) {
+      this.eventBroadcaster.broadcastNewPrompt({
+        id: latestPrompt.id,
+        content_session_id: latestPrompt.content_session_id,
+        project: latestPrompt.project,
+        platform_source: latestPrompt.platform_source,
+        prompt_number: latestPrompt.prompt_number,
+        prompt_text: latestPrompt.prompt_text,
+        created_at_epoch: latestPrompt.created_at_epoch
+      });
+
+      const chromaStart = Date.now();
+      const promptText = latestPrompt.prompt_text;
+      this.dbManager.getChromaSync()?.syncUserPrompt(
+        latestPrompt.id,
+        latestPrompt.memory_session_id,
+        latestPrompt.project,
+        promptText,
+        latestPrompt.prompt_number,
+        latestPrompt.created_at_epoch,
+        latestPrompt.platform_source
+      ).then(() => {
+        const chromaDuration = Date.now() - chromaStart;
+        const truncatedPrompt = promptText.length > 60
+          ? promptText.substring(0, 60) + '...'
+          : promptText;
+        logger.debug('CHROMA', 'User prompt synced', {
+          promptId: latestPrompt.id,
+          duration: `${chromaDuration}ms`,
+          prompt: truncatedPrompt
+        });
+      }).catch((error) => {
+        logger.error('CHROMA', 'User prompt sync failed, continuing without vector search', {
+          promptId: latestPrompt.id,
+          prompt: promptText.length > 60 ? promptText.substring(0, 60) + '...' : promptText
+        }, error);
+      });
+    }
+
     if (platformSource !== 'cursor') {
       const sdkPrompt = cleanedPrompt.startsWith('/') ? cleanedPrompt.substring(1) : cleanedPrompt;
       const session = this.sessionManager.initializeSession(sessionDbId, sdkPrompt, promptNumber, project);
-
-      const latestPrompt = store.getLatestUserPrompt(session.contentSessionId, sessionDbId);
-
-      if (latestPrompt) {
-        this.eventBroadcaster.broadcastNewPrompt({
-          id: latestPrompt.id,
-          content_session_id: latestPrompt.content_session_id,
-          project: latestPrompt.project,
-          platform_source: latestPrompt.platform_source,
-          prompt_number: latestPrompt.prompt_number,
-          prompt_text: latestPrompt.prompt_text,
-          created_at_epoch: latestPrompt.created_at_epoch
-        });
-
-        const chromaStart = Date.now();
-        const promptText = latestPrompt.prompt_text;
-        this.dbManager.getChromaSync()?.syncUserPrompt(
-          latestPrompt.id,
-          latestPrompt.memory_session_id,
-          latestPrompt.project,
-          promptText,
-          latestPrompt.prompt_number,
-          latestPrompt.created_at_epoch,
-          latestPrompt.platform_source
-        ).then(() => {
-          const chromaDuration = Date.now() - chromaStart;
-          const truncatedPrompt = promptText.length > 60
-            ? promptText.substring(0, 60) + '...'
-            : promptText;
-          logger.debug('CHROMA', 'User prompt synced', {
-            promptId: latestPrompt.id,
-            duration: `${chromaDuration}ms`,
-            prompt: truncatedPrompt
-          });
-        }).catch((error) => {
-          logger.error('CHROMA', 'User prompt sync failed, continuing without vector search', {
-            promptId: latestPrompt.id,
-            prompt: promptText.length > 60 ? promptText.substring(0, 60) + '...' : promptText
-          }, error);
-        });
-      }
 
       await this.ensureGeneratorRunning(sessionDbId, 'init');
 

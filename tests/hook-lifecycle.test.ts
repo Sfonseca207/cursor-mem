@@ -284,10 +284,20 @@ describe('Cursor IDE Compatibility (#838, #1049)', () => {
       expect(input.sessionId).toBe('id-789');
     });
 
-    it('should return undefined when no session ID field is present', async () => {
+    it('maps postToolUse Read payloads (tool_name + JSON tool_input string)', async () => {
       const { cursorAdapter } = await import('../src/cli/adapters/cursor.js');
-      const input = cursorAdapter.normalizeInput({ workspace_roots: ['/project'] });
-      expect(input.sessionId).toBeUndefined();
+      const input = cursorAdapter.normalizeInput({
+        conversation_id: 'conv-read',
+        workspace_roots: ['/project'],
+        hook_event_name: 'postToolUse',
+        tool_name: 'Read',
+        tool_input: '{"path":"/project/README.md"}',
+        result_json: '{"ok":true}',
+      });
+      expect(input.sessionId).toBe('conv-read');
+      expect(input.toolName).toBe('Read');
+      expect(input.toolInput).toEqual({ path: '/project/README.md' });
+      expect(input.toolResponse).toEqual('{"ok":true}');
     });
   });
 
@@ -378,6 +388,78 @@ describe('Cursor IDE Compatibility (#838, #1049)', () => {
       const { cursorAdapter } = await import('../src/cli/adapters/cursor.js');
       const output = cursorAdapter.formatOutput({});
       expect(output).toEqual({ continue: true });
+    });
+
+    it('emits additional_context only for SessionStart', async () => {
+      const { cursorAdapter } = await import('../src/cli/adapters/cursor.js');
+      const output = cursorAdapter.formatOutput({
+        continue: true,
+        hookSpecificOutput: {
+          hookEventName: 'SessionStart',
+          additionalContext: '# [cursor-mem] recent context',
+        },
+      });
+      expect(output).toEqual({
+        continue: true,
+        additional_context: '# [cursor-mem] recent context',
+      });
+    });
+
+    it('does not emit additional_context for UserPromptSubmit session-init', async () => {
+      const { cursorAdapter } = await import('../src/cli/adapters/cursor.js');
+      const output = cursorAdapter.formatOutput({
+        continue: true,
+        hookSpecificOutput: {
+          hookEventName: 'UserPromptSubmit',
+          additionalContext: 'should not leak into beforeSubmitPrompt',
+        },
+      });
+      expect(output).toEqual({ continue: true });
+    });
+
+    it('omits empty SessionStart additionalContext', async () => {
+      const { cursorAdapter } = await import('../src/cli/adapters/cursor.js');
+      const output = cursorAdapter.formatOutput({
+        continue: true,
+        hookSpecificOutput: {
+          hookEventName: 'SessionStart',
+          additionalContext: '',
+        },
+      });
+      expect(output).toEqual({ continue: true });
+    });
+
+    it('maps SessionStart systemMessage to user_message for the CLI banner', async () => {
+      const { cursorAdapter } = await import('../src/cli/adapters/cursor.js');
+      const output = cursorAdapter.formatOutput({
+        continue: true,
+        systemMessage: 'cursor-mem started\nView memories @ http://localhost:37850',
+        hookSpecificOutput: {
+          hookEventName: 'SessionStart',
+          additionalContext: '# [cursor-mem] recent context',
+        },
+      });
+      expect(output).toEqual({
+        continue: true,
+        additional_context: '# [cursor-mem] recent context',
+        user_message: 'cursor-mem started\nView memories @ http://localhost:37850',
+      });
+    });
+
+    it('emits user_message even when additional_context is empty', async () => {
+      const { cursorAdapter } = await import('../src/cli/adapters/cursor.js');
+      const output = cursorAdapter.formatOutput({
+        continue: true,
+        systemMessage: 'cursor-mem started\nView memories @ http://localhost:37850',
+        hookSpecificOutput: {
+          hookEventName: 'SessionStart',
+          additionalContext: '',
+        },
+      });
+      expect(output).toEqual({
+        continue: true,
+        user_message: 'cursor-mem started\nView memories @ http://localhost:37850',
+      });
     });
   });
 });

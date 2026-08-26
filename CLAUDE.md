@@ -1,33 +1,17 @@
-# Claude-Mem: AI Development Instructions
+# cursor-mem
 
-Claude-mem is a Claude Code plugin providing persistent memory across sessions. It captures tool usage, compresses observations using the Claude Agent SDK, and injects relevant context into future sessions.
+Fork de referencia de claude-mem para extraer filosofías de memoria persistente y aplicarlas a Cursor (agente + chats del IDE).
 
-## Build
+**Documentación (única fuente):** [`docs/README.md`](docs/README.md)
 
-```bash
-npm run build-and-sync        # Build, sync to marketplace, restart worker
-```
+## Código
 
-## File Locations
+- **Source**: `src/`
+- **Modos del observer**: `plugin/modes/`
+- **Puente Cursor actual**: `cursor-hooks/`
 
-- **Source**: `<project-root>/src/`
-- **Built Plugin**: `<project-root>/plugin/`
-- **Installed Plugin**: `~/.claude/plugins/marketplaces/thedotmack/`
-- **Database**: `~/.claude-mem/claude-mem.db`
-- **Chroma**: `~/.claude-mem/chroma/`
+## Runtime local (si se corre el worker)
 
-## Requirements
-
-- **Bun** (all platforms - auto-installed if missing)
-- **uv** (all platforms - auto-installed if missing, provides Python for Chroma)
-- Node.js
-
-## Documentation
-
-**Public Docs**: https://docs.claude-mem.ai (Mintlify)
-**Source**: `docs/public/` - MDX files, edit `docs.json` for navigation
-**Deploy**: Auto-deploys from GitHub on push to main
-
-## Important
-
-No need to edit the changelog ever, it's generated automatically.
+- Settings: `~/.claude-mem/settings.json`
+- Database: `~/.claude-mem/claude-mem.db`
+- Chroma: `~/.claude-mem/chroma/`

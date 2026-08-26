@@ -12,7 +12,8 @@ export const fileEditHandler: EventHandler = {
     const platformSource = normalizePlatformSource(input.platform);
 
     if (!filePath) {
-      throw new Error('fileEditHandler requires filePath');
+      logger.warn('HOOK', 'fileEditHandler missing filePath, skipping');
+      return { continue: true, suppressOutput: true, exitCode: HOOK_EXIT_CODES.SUCCESS };
     }
 
     logger.dataIn('HOOK', `FileEdit: ${filePath}`, {
@@ -20,7 +21,8 @@ export const fileEditHandler: EventHandler = {
     });
 
     if (!cwd) {
-      throw new Error(`Missing cwd in FileEdit hook input for session ${sessionId}, file ${filePath}`);
+      logger.warn('HOOK', `Missing cwd in FileEdit hook input for session ${sessionId}, file ${filePath}`);
+      return { continue: true, suppressOutput: true, exitCode: HOOK_EXIT_CODES.SUCCESS };
     }
 
     if (!shouldTrackProject(cwd)) {
